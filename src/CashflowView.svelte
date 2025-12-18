@@ -280,7 +280,7 @@ merchant_stats AS (
 SELECT description, avg_amount, occurrence_count, avg_interval, last_date
 FROM merchant_stats
 ORDER BY ABS(avg_amount) DESC
-LIMIT 20`;
+LIMIT 50`;
 
   async function loadSuggestions() {
     try {
