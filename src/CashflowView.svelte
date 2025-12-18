@@ -206,8 +206,13 @@
     }
   }
 
-  // Auto-detection SQL for suggestions
-  const SUGGESTION_SQL = `WITH base_transactions AS (
+  // Auto-detection SQL for suggestions (filtered by selected accounts)
+  function getSuggestionSQL(accountIds: string[]): string {
+    const accountFilter = accountIds.length > 0
+      ? `AND account_id IN (${accountIds.map(id => `'${id}'`).join(', ')})`
+      : '';
+
+    return `WITH base_transactions AS (
   SELECT
     ROUND(amount, 2) as norm_amount,
     UPPER(description) as upper_desc,
@@ -216,6 +221,7 @@
     transaction_date
   FROM transactions
   WHERE description IS NOT NULL AND description != ''
+  ${accountFilter}
 ),
 canonical_merchants AS (
   SELECT DISTINCT ON (norm_amount)
@@ -280,10 +286,12 @@ merchant_stats AS (
 SELECT description, avg_amount, occurrence_count, avg_interval, last_date
 FROM merchant_stats
 ORDER BY ABS(avg_amount) DESC`;
+  }
 
   async function loadSuggestions() {
     try {
-      const rows = await sdk.query<any>(SUGGESTION_SQL);
+      const sql = getSuggestionSQL(Array.from(selectedAccountIds));
+      const rows = await sdk.query<any>(sql);
       suggestions = rows.map((r: any) => {
         const interval = Math.round(r[3] as number);
         let frequency = "monthly";
@@ -317,6 +325,8 @@ ORDER BY ABS(avg_amount) DESC`;
     }
     selectedAccountIds = newSelection;
     await sdk.settings.set("selectedAccountIds", Array.from(newSelection));
+    // Reload suggestions for new account selection
+    await loadSuggestions();
   }
 
   function openAddModal(suggestion?: Suggestion) {
