@@ -58,6 +58,7 @@
   let formFrequency = $state("monthly");
   let formStartDate = $state("");
   let formDurationMonths = $state(3);
+  let formDayOfMonth = $state(1); // 1-28 or 0 for "last day"
 
   // Refs
   let containerEl = $state<HTMLDivElement | null>(null);
@@ -320,29 +321,44 @@ LIMIT 20`;
   }
 
   function openAddModal(suggestion?: Suggestion) {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const currentMonth = todayStr.substring(0, 7); // YYYY-MM
+
     if (suggestion) {
       formDescription = suggestion.description;
       formAmount = Math.abs(suggestion.amount).toString();
       formIsIncome = suggestion.amount > 0;
       formScheduleType = "recurring";
       formFrequency = suggestion.frequency;
-      // Calculate next expected date
+
+      // Get day of month from last transaction, clamping to 1-28 or 0 for last day
       const lastDate = new Date(suggestion.last_date);
-      lastDate.setDate(lastDate.getDate() + suggestion.interval_days);
-      const today = new Date();
-      while (lastDate < today) {
-        lastDate.setDate(lastDate.getDate() + suggestion.interval_days);
+      const dayOfLastTx = lastDate.getDate();
+      formDayOfMonth = dayOfLastTx > 28 ? 0 : dayOfLastTx; // 29+ becomes "last day"
+
+      // For weekly/biweekly, calculate next occurrence
+      if (suggestion.frequency === "weekly" || suggestion.frequency === "biweekly") {
+        let nextDate = new Date(lastDate);
+        nextDate.setDate(nextDate.getDate() + suggestion.interval_days);
+        while (nextDate < today) {
+          nextDate.setDate(nextDate.getDate() + suggestion.interval_days);
+        }
+        formStartDate = nextDate.toISOString().split('T')[0];
+      } else {
+        // For monthly+, use current or next month
+        formStartDate = currentMonth;
       }
-      formStartDate = lastDate.toISOString().split('T')[0];
       formDurationMonths = 3;
     } else {
       formDescription = "";
       formAmount = "";
       formIsIncome = false;
       formScheduleType = "once";
-      formDate = new Date().toISOString().split('T')[0];
+      formDate = todayStr;
       formFrequency = "monthly";
-      formStartDate = new Date().toISOString().split('T')[0];
+      formStartDate = currentMonth;
+      formDayOfMonth = today.getDate() > 28 ? 28 : today.getDate();
       formDurationMonths = 3;
     }
     showAddModal = true;
@@ -376,22 +392,52 @@ LIMIT 20`;
       } else {
         // Recurring - generate multiple items with same series_id
         const seriesId = generateId();
-        const startDate = new Date(formStartDate);
-        const endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + formDurationMonths);
-
-        const intervalDays = getIntervalDays(formFrequency);
         const escaped = formDescription.replace(/'/g, "''");
 
-        let currentDate = new Date(startDate);
-        while (currentDate <= endDate) {
-          const id = generateId();
-          const dateStr = currentDate.toISOString().split('T')[0];
-          await sdk.execute(`
-            INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-            VALUES ('${id}', '${seriesId}', '${escaped}', ${amount}, '${dateStr}')
-          `);
-          currentDate.setDate(currentDate.getDate() + intervalDays);
+        if (formFrequency === "weekly" || formFrequency === "biweekly") {
+          // Day-based intervals
+          const startDate = new Date(formStartDate);
+          const endDate = new Date(startDate);
+          endDate.setMonth(endDate.getMonth() + formDurationMonths);
+          const intervalDays = getIntervalDays(formFrequency);
+
+          let currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            const id = generateId();
+            const dateStr = currentDate.toISOString().split('T')[0];
+            await sdk.execute(`
+              INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
+              VALUES ('${id}', '${seriesId}', '${escaped}', ${amount}, '${dateStr}')
+            `);
+            currentDate.setDate(currentDate.getDate() + intervalDays);
+          }
+        } else {
+          // Month-based: monthly, quarterly, annual
+          // formStartDate is YYYY-MM format
+          const [startYear, startMonth] = formStartDate.split('-').map(Number);
+          const monthIncrement = formFrequency === "monthly" ? 1 : formFrequency === "quarterly" ? 3 : 12;
+
+          let currentYear = startYear;
+          let currentMonth = startMonth - 1; // JS months are 0-indexed
+          let count = 0;
+          const maxOccurrences = Math.ceil(formDurationMonths / monthIncrement);
+
+          while (count < maxOccurrences) {
+            const currentDate = getDateForMonth(currentYear, currentMonth, formDayOfMonth);
+            const id = generateId();
+            const dateStr = currentDate.toISOString().split('T')[0];
+            await sdk.execute(`
+              INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
+              VALUES ('${id}', '${seriesId}', '${escaped}', ${amount}, '${dateStr}')
+            `);
+
+            currentMonth += monthIncrement;
+            if (currentMonth >= 12) {
+              currentYear += Math.floor(currentMonth / 12);
+              currentMonth = currentMonth % 12;
+            }
+            count++;
+          }
         }
       }
 
@@ -407,11 +453,30 @@ LIMIT 20`;
     switch (frequency) {
       case "weekly": return 7;
       case "biweekly": return 14;
-      case "monthly": return 30;
-      case "quarterly": return 91;
-      case "annual": return 365;
-      default: return 30;
+      default: return 7;
     }
+  }
+
+  function getOrdinalSuffix(n: number): string {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  }
+
+  function getDateForMonth(year: number, month: number, dayOfMonth: number): Date {
+    // dayOfMonth: 1-28 for specific day, 0 for last day
+    if (dayOfMonth === 0) {
+      // Last day of month: go to first of next month, subtract one day
+      return new Date(year, month + 1, 0);
+    }
+    return new Date(year, month, dayOfMonth);
+  }
+
+  function advanceByMonths(date: Date, months: number, dayOfMonth: number): Date {
+    const newMonth = date.getMonth() + months;
+    const newYear = date.getFullYear() + Math.floor(newMonth / 12);
+    const adjustedMonth = ((newMonth % 12) + 12) % 12;
+    return getDateForMonth(newYear, adjustedMonth, dayOfMonth);
   }
 
   function openEditModal(item: ScheduledItem) {
@@ -758,22 +823,40 @@ LIMIT 20`;
             <input type="date" bind:value={formDate} />
           </div>
         {:else}
-          <div class="form-row">
-            <div class="form-group">
-              <label>Frequency</label>
-              <select bind:value={formFrequency}>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Every 2 weeks</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="annual">Annual</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label>Frequency</label>
+            <select bind:value={formFrequency}>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="annual">Annually</option>
+            </select>
+          </div>
+
+          {#if formFrequency === "weekly" || formFrequency === "biweekly"}
             <div class="form-group">
               <label>Starting</label>
               <input type="date" bind:value={formStartDate} />
             </div>
-          </div>
+          {:else}
+            <div class="form-row">
+              <div class="form-group">
+                <label>Day of month</label>
+                <select bind:value={formDayOfMonth}>
+                  {#each Array.from({length: 28}, (_, i) => i + 1) as day}
+                    <option value={day}>{day}{getOrdinalSuffix(day)}</option>
+                  {/each}
+                  <option value={0}>Last day</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Starting month</label>
+                <input type="month" bind:value={formStartDate} />
+              </div>
+            </div>
+          {/if}
+
           <div class="form-group">
             <label>Generate for</label>
             <select bind:value={formDurationMonths}>
