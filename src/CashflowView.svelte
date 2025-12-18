@@ -192,12 +192,20 @@
         balance: r[2] as number,
       }));
 
-      // Load saved selection or default to all
+      // Load saved selection or default to first account
       const savedSelection = await sdk.settings.get("selectedAccountIds");
+      const validAccountIds = new Set(accounts.map(a => a.id));
+
       if (savedSelection && Array.isArray(savedSelection)) {
-        selectedAccountIds = new Set(savedSelection);
+        // Filter to only valid account IDs that still exist
+        const validSaved = savedSelection.filter(id => validAccountIds.has(id));
+        if (validSaved.length > 0) {
+          selectedAccountIds = new Set(validSaved);
+        } else if (accounts.length > 0) {
+          selectedAccountIds = new Set([accounts[0].id]);
+        }
       } else if (accounts.length > 0) {
-        // Default to first account (usually checking)
+        // Default to first account
         selectedAccountIds = new Set([accounts[0].id]);
       }
     } catch (e) {
