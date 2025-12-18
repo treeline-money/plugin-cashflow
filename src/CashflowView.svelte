@@ -8,6 +8,11 @@
   let { sdk }: Props = $props();
 
   // Types
+  interface PluginSettings {
+    selectedAccountIds?: string[];
+    horizonMonths?: number;
+  }
+
   interface ScheduledItem {
     id: string;
     series_id: string | null;
@@ -192,8 +197,16 @@
         balance: r[2] as number,
       }));
 
-      // Load saved selection or default to first account
-      const savedSelection = await sdk.settings.get("selectedAccountIds");
+      // Load saved settings
+      const settings = await sdk.settings.get<PluginSettings>() || {};
+
+      // Restore horizon if saved
+      if (settings.horizonMonths) {
+        horizonMonths = settings.horizonMonths;
+      }
+
+      // Load saved account selection or default to first account
+      const savedSelection = settings.selectedAccountIds;
       const validAccountIds = new Set(accounts.map(a => a.id));
 
       if (savedSelection && Array.isArray(savedSelection)) {
@@ -348,7 +361,10 @@ ORDER BY ABS(avg_amount) DESC`;
       newSelection.add(accountId);
     }
     selectedAccountIds = newSelection;
-    await sdk.settings.set("selectedAccountIds", Array.from(newSelection));
+    // Save to plugin settings
+    const settings = await sdk.settings.get<PluginSettings>() || {};
+    settings.selectedAccountIds = Array.from(newSelection);
+    await sdk.settings.set(settings);
     // Reload suggestions for new account selection
     await loadSuggestions();
   }
@@ -582,7 +598,9 @@ ORDER BY ABS(avg_amount) DESC`;
 
   async function setHorizon(months: number) {
     horizonMonths = months;
-    await sdk.settings.set("horizonMonths", months);
+    const settings = await sdk.settings.get<PluginSettings>() || {};
+    settings.horizonMonths = months;
+    await sdk.settings.set(settings);
   }
 
   // Formatting
