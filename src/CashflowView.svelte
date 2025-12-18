@@ -167,9 +167,17 @@
 
   async function loadAccounts() {
     try {
-      const rows = await sdk.query<any>(
-        "SELECT account_id, account_name, balance FROM sys_accounts ORDER BY account_name"
-      );
+      // Get accounts with computed balance from transactions
+      const rows = await sdk.query<any>(`
+        SELECT
+          account_id,
+          account_name,
+          SUM(amount) as balance
+        FROM transactions
+        WHERE account_id IS NOT NULL
+        GROUP BY account_id, account_name
+        ORDER BY account_name
+      `);
       accounts = rows.map((r: any) => ({
         id: r[0] as string,
         name: r[1] as string,
