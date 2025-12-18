@@ -167,8 +167,8 @@
 
   async function loadAccounts() {
     try {
-      // Get asset accounts (checking, savings) with balance from snapshots
-      // Credit cards are liabilities and excluded from cash flow projection
+      // Get all accounts with balance from snapshots
+      // User chooses which accounts to include in cash flow projection
       const rows = await sdk.query<any>(`
         WITH latest_snapshots AS (
           SELECT
@@ -184,8 +184,6 @@
           a.account_type
         FROM accounts a
         LEFT JOIN latest_snapshots s ON a.account_id = s.account_id AND s.rn = 1
-        WHERE a.account_type IS NULL
-           OR LOWER(a.account_type) NOT IN ('credit', 'loan', 'credit card')
         ORDER BY COALESCE(a.nickname, a.name)
       `);
       accounts = rows.map((r: any) => ({
