@@ -23,7 +23,7 @@ export const plugin: Plugin = {
     context.registerView({
       id: "cashflow-view",
       name: "Cash Flow",
-      icon: "trending-up",
+      icon: "activity",
       mount: (target: HTMLElement, props: Record<string, any>) => {
         const instance = mount(CashflowView, {
           target,
@@ -41,7 +41,7 @@ export const plugin: Plugin = {
       sectionId: "main",
       id: "treeline-cashflow",
       label: "Cash Flow",
-      icon: "trending-up",
+      icon: "activity",
       viewId: "cashflow-view",
     });
 

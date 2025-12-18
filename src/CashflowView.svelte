@@ -52,7 +52,9 @@
   // Modal state
   let showAddModal = $state(false);
   let showEditModal = $state(false);
+  let showExtendModal = $state(false);
   let editingItem = $state<ScheduledItem | null>(null);
+  let extendDurationMonths = $state(3);
 
   // Form state
   let formDescription = $state("");
@@ -583,6 +585,145 @@ ORDER BY ABS(avg_amount) DESC`;
     }
   }
 
+  interface SeriesInfo {
+    seriesId: string;
+    description: string;
+    amount: number;
+    frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "annual";
+    dayOfMonth: number; // For monthly+ frequencies
+    lastDate: Date;
+    intervalDays: number; // Actual average interval
+  }
+
+  async function getSeriesInfo(seriesId: string): Promise<SeriesInfo | null> {
+    // Get all items in this series ordered by date
+    const seriesItems = items
+      .filter(item => item.series_id === seriesId)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (seriesItems.length === 0) return null;
+
+    const lastItem = seriesItems[seriesItems.length - 1];
+
+    // Calculate average interval if we have multiple items
+    let avgInterval = 30; // default to monthly
+    if (seriesItems.length >= 2) {
+      const intervals: number[] = [];
+      for (let i = 1; i < seriesItems.length; i++) {
+        const prev = new Date(seriesItems[i - 1].date);
+        const curr = new Date(seriesItems[i].date);
+        intervals.push((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      avgInterval = intervals.reduce((sum, i) => sum + i, 0) / intervals.length;
+    }
+
+    // Determine frequency based on average interval
+    let frequency: SeriesInfo["frequency"];
+    if (avgInterval <= 8) frequency = "weekly";
+    else if (avgInterval <= 16) frequency = "biweekly";
+    else if (avgInterval <= 35) frequency = "monthly";
+    else if (avgInterval <= 100) frequency = "quarterly";
+    else frequency = "annual";
+
+    // Get day of month from the most common day (for monthly+ frequencies)
+    const dayOfMonth = new Date(lastItem.date + 'T00:00:00').getDate();
+
+    return {
+      seriesId,
+      description: lastItem.description,
+      amount: lastItem.amount,
+      frequency,
+      dayOfMonth: dayOfMonth > 28 ? 0 : dayOfMonth, // Use 0 for "last day"
+      lastDate: new Date(lastItem.date + 'T00:00:00'),
+      intervalDays: Math.round(avgInterval),
+    };
+  }
+
+  function openExtendModal() {
+    extendDurationMonths = 3;
+    showExtendModal = true;
+    showEditModal = false;
+  }
+
+  function closeExtendModal() {
+    showExtendModal = false;
+    editingItem = null;
+  }
+
+  async function extendSeries() {
+    if (!editingItem?.series_id) return;
+
+    const info = await getSeriesInfo(editingItem.series_id);
+    if (!info) {
+      sdk.toast.error("Could not determine series pattern");
+      return;
+    }
+
+    try {
+      const escaped = info.description.replace(/'/g, "''");
+
+      if (info.frequency === "weekly" || info.frequency === "biweekly") {
+        // Day-based intervals
+        const startDate = new Date(info.lastDate);
+        startDate.setDate(startDate.getDate() + info.intervalDays); // Start after last item
+
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + extendDurationMonths);
+
+        let currentDate = new Date(startDate);
+        let count = 0;
+        while (currentDate <= endDate) {
+          const id = generateId();
+          const dateStr = currentDate.toISOString().split('T')[0];
+          await sdk.execute(`
+            INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
+            VALUES ('${id}', '${info.seriesId}', '${escaped}', ${info.amount}, '${dateStr}')
+          `);
+          currentDate.setDate(currentDate.getDate() + info.intervalDays);
+          count++;
+        }
+        await loadItems();
+        closeExtendModal();
+        sdk.toast.success(`Extended ${info.description}`, `Added ${count} occurrences`);
+      } else {
+        // Month-based: monthly, quarterly, annual
+        const monthIncrement = info.frequency === "monthly" ? 1 : info.frequency === "quarterly" ? 3 : 12;
+        const maxOccurrences = Math.ceil(extendDurationMonths / monthIncrement);
+
+        // Start from the month after the last item
+        let currentYear = info.lastDate.getFullYear();
+        let currentMonth = info.lastDate.getMonth() + monthIncrement;
+        if (currentMonth >= 12) {
+          currentYear += Math.floor(currentMonth / 12);
+          currentMonth = currentMonth % 12;
+        }
+
+        let count = 0;
+        while (count < maxOccurrences) {
+          const currentDate = getDateForMonth(currentYear, currentMonth, info.dayOfMonth);
+          const id = generateId();
+          const dateStr = currentDate.toISOString().split('T')[0];
+          await sdk.execute(`
+            INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
+            VALUES ('${id}', '${info.seriesId}', '${escaped}', ${info.amount}, '${dateStr}')
+          `);
+
+          currentMonth += monthIncrement;
+          if (currentMonth >= 12) {
+            currentYear += Math.floor(currentMonth / 12);
+            currentMonth = currentMonth % 12;
+          }
+          count++;
+        }
+        await loadItems();
+        closeExtendModal();
+        sdk.toast.success(`Extended ${info.description}`, `Added ${count} occurrences`);
+      }
+    } catch (e) {
+      sdk.toast.error("Failed to extend series", e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function resetPluginData() {
     if (!confirm("This will delete all scheduled items. Are you sure?")) return;
 
@@ -637,7 +778,7 @@ ORDER BY ABS(avg_amount) DESC`;
 
   // Keyboard navigation
   function handleKeyDown(e: KeyboardEvent) {
-    if (showAddModal || showEditModal) return;
+    if (showAddModal || showEditModal || showExtendModal) return;
 
     switch (e.key) {
       case "j":
@@ -962,10 +1103,14 @@ ORDER BY ABS(avg_amount) DESC`;
         </div>
 
         {#if editingItem.series_id}
-          <p class="series-note">
-            This item is part of a recurring series.
-            Editing only affects this instance.
-          </p>
+          <div class="series-note">
+            <span class="series-note-text">Part of a recurring series. Editing only affects this instance.</span>
+            <div class="series-actions">
+              <button class="link-btn" onclick={openExtendModal}>Extend series</button>
+              <span class="separator">·</span>
+              <button class="link-btn danger-link" onclick={() => { deleteItem(editingItem!, true); closeEditModal(); }}>Delete series</button>
+            </div>
+          </div>
         {/if}
       </div>
 
@@ -973,14 +1118,42 @@ ORDER BY ABS(avg_amount) DESC`;
         <button class="btn danger" onclick={() => { deleteItem(editingItem!); closeEditModal(); }}>
           Delete
         </button>
-        {#if editingItem.series_id}
-          <button class="btn danger-outline" onclick={() => { deleteItem(editingItem!, true); closeEditModal(); }}>
-            Delete Series
-          </button>
-        {/if}
         <div class="footer-spacer"></div>
         <button class="btn secondary" onclick={closeEditModal}>Cancel</button>
         <button class="btn primary" onclick={saveEditedItem}>Save</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Extend Series Modal -->
+{#if showExtendModal && editingItem?.series_id}
+  <div class="modal-backdrop" onclick={closeExtendModal} role="dialog">
+    <div class="modal modal-small" onclick={(e) => e.stopPropagation()} role="document">
+      <div class="modal-header">
+        <h2>Extend Series</h2>
+        <button class="modal-close" onclick={closeExtendModal}>×</button>
+      </div>
+
+      <div class="modal-form">
+        <p class="extend-info">
+          Extend "<strong>{editingItem.description}</strong>" by adding more occurrences after the current series ends.
+        </p>
+
+        <div class="form-group">
+          <label>Add occurrences for</label>
+          <select bind:value={extendDurationMonths}>
+            <option value={1}>1 month</option>
+            <option value={3}>3 months</option>
+            <option value={6}>6 months</option>
+            <option value={12}>1 year</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn secondary" onclick={closeExtendModal}>Cancel</button>
+        <button class="btn primary" onclick={extendSeries}>Extend</button>
       </div>
     </div>
   </div>
@@ -1540,9 +1713,42 @@ ORDER BY ABS(avg_amount) DESC`;
     font-size: 12px;
     color: var(--text-muted);
     background: var(--bg-tertiary);
-    padding: var(--spacing-sm, 8px);
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
     border-radius: 4px;
     margin: 0;
+  }
+
+  .series-note-text {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .series-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12px;
+    color: var(--accent-primary);
+    cursor: pointer;
+    text-decoration: none;
+  }
+
+  .link-btn:hover {
+    text-decoration: underline;
+  }
+
+  .link-btn.danger-link {
+    color: var(--accent-danger, #f85149);
+  }
+
+  .separator {
+    color: var(--text-muted);
   }
 
   /* Modal Footer */
@@ -1595,5 +1801,21 @@ ORDER BY ABS(avg_amount) DESC`;
 
   .btn.danger-outline:hover {
     background: rgba(248, 81, 73, 0.1);
+  }
+
+  /* Small Modal */
+  .modal-small {
+    width: 380px;
+  }
+
+  .extend-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-md, 12px) 0;
+    line-height: 1.5;
+  }
+
+  .extend-info strong {
+    color: var(--text-primary);
   }
 </style>
