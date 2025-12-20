@@ -1,17 +1,17 @@
-import type { Plugin, PluginContext } from "./types";
+import type { Plugin, PluginContext, PluginSDK } from "@treeline-money/plugin-sdk";
 import CashflowView from "./CashflowView.svelte";
 import { mount, unmount } from "svelte";
 
 export const plugin: Plugin = {
   manifest: {
-    id: "treeline-cashflow",
+    id: "cashflow",
     name: "Cash Flow",
-    version: "0.2.0",
+    version: "0.1.0",
     description: "Plan your future balance by scheduling expected income and expenses",
     author: "Treeline",
     permissions: {
       tables: {
-        write: ["sys_plugin_treeline_cashflow_items"],
+        write: ["sys_plugin_cashflow_items"],
       },
     },
   },
@@ -24,7 +24,7 @@ export const plugin: Plugin = {
       id: "cashflow-view",
       name: "Cash Flow",
       icon: "activity",
-      mount: (target: HTMLElement, props: Record<string, any>) => {
+      mount: (target: HTMLElement, props: { sdk: PluginSDK }) => {
         const instance = mount(CashflowView, {
           target,
           props,
@@ -39,7 +39,7 @@ export const plugin: Plugin = {
     // Add sidebar item
     context.registerSidebarItem({
       sectionId: "main",
-      id: "treeline-cashflow",
+      id: "cashflow",
       label: "Cash Flow",
       icon: "activity",
       viewId: "cashflow-view",
