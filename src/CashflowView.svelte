@@ -435,15 +435,13 @@ ORDER BY ABS(avg_amount) DESC`;
       if (formScheduleType === "once") {
         // Single item
         const id = generateId();
-        const escaped = formDescription.replace(/'/g, "''");
         await sdk.execute(`
           INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-          VALUES ('${id}', NULL, '${escaped}', ${amount}, '${formDate}')
-        `);
+          VALUES (?, NULL, ?, ?, ?)
+        `, [id, formDescription, amount, formDate]);
       } else {
         // Recurring - generate multiple items with same series_id
         const seriesId = generateId();
-        const escaped = formDescription.replace(/'/g, "''");
 
         if (formFrequency === "weekly" || formFrequency === "biweekly") {
           // Day-based intervals
@@ -458,8 +456,8 @@ ORDER BY ABS(avg_amount) DESC`;
             const dateStr = currentDate.toISOString().split('T')[0];
             await sdk.execute(`
               INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-              VALUES ('${id}', '${seriesId}', '${escaped}', ${amount}, '${dateStr}')
-            `);
+              VALUES (?, ?, ?, ?, ?)
+            `, [id, seriesId, formDescription, amount, dateStr]);
             currentDate.setDate(currentDate.getDate() + intervalDays);
           }
         } else {
@@ -479,8 +477,8 @@ ORDER BY ABS(avg_amount) DESC`;
             const dateStr = currentDate.toISOString().split('T')[0];
             await sdk.execute(`
               INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-              VALUES ('${id}', '${seriesId}', '${escaped}', ${amount}, '${dateStr}')
-            `);
+              VALUES (?, ?, ?, ?, ?)
+            `, [id, seriesId, formDescription, amount, dateStr]);
 
             currentMonth += monthIncrement;
             if (currentMonth >= 12) {
@@ -548,14 +546,13 @@ ORDER BY ABS(avg_amount) DESC`;
     if (!editingItem) return;
 
     const amount = parseFloat(formAmount) * (formIsIncome ? 1 : -1);
-    const escaped = formDescription.replace(/'/g, "''");
 
     try {
       await sdk.execute(`
         UPDATE sys_plugin_treeline_cashflow_items
-        SET description = '${escaped}', amount = ${amount}, date = '${formDate}'
-        WHERE id = '${editingItem.id}'
-      `);
+        SET description = ?, amount = ?, date = ?
+        WHERE id = ?
+      `, [formDescription, amount, formDate, editingItem.id]);
       await loadItems();
       closeEditModal();
       sdk.toast.success("Updated", formDescription);
@@ -569,14 +566,14 @@ ORDER BY ABS(avg_amount) DESC`;
       if (deleteAll && item.series_id) {
         await sdk.execute(`
           DELETE FROM sys_plugin_treeline_cashflow_items
-          WHERE series_id = '${item.series_id}'
-        `);
+          WHERE series_id = ?
+        `, [item.series_id]);
         sdk.toast.success("Deleted series", item.description);
       } else {
         await sdk.execute(`
           DELETE FROM sys_plugin_treeline_cashflow_items
-          WHERE id = '${item.id}'
-        `);
+          WHERE id = ?
+        `, [item.id]);
         sdk.toast.success("Deleted", item.description);
       }
       await loadItems();
@@ -660,8 +657,6 @@ ORDER BY ABS(avg_amount) DESC`;
     }
 
     try {
-      const escaped = info.description.replace(/'/g, "''");
-
       if (info.frequency === "weekly" || info.frequency === "biweekly") {
         // Day-based intervals
         const startDate = new Date(info.lastDate);
@@ -677,8 +672,8 @@ ORDER BY ABS(avg_amount) DESC`;
           const dateStr = currentDate.toISOString().split('T')[0];
           await sdk.execute(`
             INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-            VALUES ('${id}', '${info.seriesId}', '${escaped}', ${info.amount}, '${dateStr}')
-          `);
+            VALUES (?, ?, ?, ?, ?)
+          `, [id, info.seriesId, info.description, info.amount, dateStr]);
           currentDate.setDate(currentDate.getDate() + info.intervalDays);
           count++;
         }
@@ -705,8 +700,8 @@ ORDER BY ABS(avg_amount) DESC`;
           const dateStr = currentDate.toISOString().split('T')[0];
           await sdk.execute(`
             INSERT INTO sys_plugin_treeline_cashflow_items (id, series_id, description, amount, date)
-            VALUES ('${id}', '${info.seriesId}', '${escaped}', ${info.amount}, '${dateStr}')
-          `);
+            VALUES (?, ?, ?, ?, ?)
+          `, [id, info.seriesId, info.description, info.amount, dateStr]);
 
           currentMonth += monthIncrement;
           if (currentMonth >= 12) {
