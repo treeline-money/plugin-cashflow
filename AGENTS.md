@@ -1,99 +1,76 @@
-# Treeline Plugin Development
+# Cash Flow Plugin
 
-This is a Treeline plugin. Treeline is a local-first personal finance app.
+A Treeline plugin for planning your future balance by scheduling expected income and expenses.
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `manifest.json` | Plugin metadata (id, name, version, permissions) |
-| `src/index.ts` | Plugin entry point - registers views and commands |
-| `src/*View.svelte` | Svelte 5 components for your UI |
-| `src/types.ts` | TypeScript types for the Plugin SDK |
+| `manifest.json` | Plugin metadata (id: "cashflow") |
+| `src/index.ts` | Plugin entry point |
+| `src/CashflowView.svelte` | Main UI component |
+| `package.json` | Dependencies (includes `@treeline-money/plugin-sdk`) |
 
 ## Quick Commands
 
 ```bash
 npm install          # Install dependencies
 npm run build        # Build to dist/index.js
-npm run dev          # Watch mode (rebuild on changes)
+npm run dev          # Watch mode
 tl plugin install .  # Install locally for testing
 ```
 
-## SDK Quick Reference
+## Plugin Data
+
+This plugin stores scheduled items in `sys_plugin_cashflow_items` table:
+
+```sql
+CREATE TABLE IF NOT EXISTS sys_plugin_cashflow_items (
+  id VARCHAR PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  amount DECIMAL NOT NULL,
+  frequency VARCHAR,           -- once, weekly, monthly, yearly
+  next_date DATE,
+  category VARCHAR,
+  is_income BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+## SDK Import
+
+All types are imported from the npm package:
+
+```typescript
+import type { Plugin, PluginContext, PluginSDK } from "@treeline-money/plugin-sdk";
+```
 
 Views receive `sdk` via props:
 
 ```svelte
 <script lang="ts">
-  import type { PluginSDK } from "./types";
-  let { sdk }: { sdk: PluginSDK } = $props();
+  import type { PluginSDK } from "@treeline-money/plugin-sdk";
+
+  interface Props {
+    sdk: PluginSDK;
+  }
+  let { sdk }: Props = $props();
 </script>
 ```
 
+## SDK Quick Reference
+
 | Method | What it does |
 |--------|--------------|
-| `sdk.query(sql)` | Read data (SELECT queries) |
-| `sdk.execute(sql)` | Write to your plugin's tables only |
+| `sdk.query(sql)` | Read data |
+| `sdk.execute(sql)` | Write to sys_plugin_cashflow_items |
 | `sdk.toast.success/error/info(msg)` | Show notifications |
 | `sdk.openView(viewId, props?)` | Navigate to another view |
-| `sdk.onDataRefresh(callback)` | React when data changes (sync/import) |
+| `sdk.onDataRefresh(callback)` | React when data changes |
+| `sdk.emitDataRefresh()` | Notify other views data changed |
 | `sdk.theme.current()` | Get "light" or "dark" |
-| `sdk.settings.get/set()` | Persist plugin settings |
-
-## Database Access
-
-- **Read anything**: `sdk.query("SELECT * FROM transactions")`
-- **Write only to your tables**: Must be declared in `manifest.json` permissions
-- **Table naming**: Use `sys_plugin_{your_plugin_id}_*` for your tables
-
-## Common Patterns
-
-### Create a table for your plugin data
-```typescript
-await sdk.execute(`
-  CREATE TABLE IF NOT EXISTS sys_plugin_my_plugin_data (
-    id VARCHAR PRIMARY KEY,
-    value INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-```
-
-### Subscribe to theme changes
-```typescript
-let theme = $state(sdk.theme.current());
-sdk.theme.subscribe(t => theme = t);
-```
-
-### Show loading state
-```typescript
-let isLoading = $state(true);
-try {
-  const data = await sdk.query("SELECT ...");
-  // use data
-} finally {
-  isLoading = false;
-}
-```
-
-## Icons
-
-Use Lucide icon names for sidebar items and views:
-
-```typescript
-icon: "target"   // Preferred - icon name
-icon: "🎯"       // Also works - emoji
-```
-
-**Available icons:** `target`, `repeat`, `shield`, `bank`, `wallet`, `credit-card`, `chart`, `tag`, `tags`, `database`, `refresh`, `link`, `zap`, `calendar`, `file-text`, `settings`, `plus`, `search`, `check`, `x`, `alert-triangle`, `info`, `help-circle`
-
-## Don't Do
-
-- Don't write to tables not in your permissions (will throw error)
-- Don't forget dark mode support (test with both themes)
-- Don't bundle heavy dependencies (keep plugins lightweight)
-- Don't use `sdk.execute()` for SELECT queries (use `sdk.query()`)
+| `sdk.settings.get/set()` | Persist settings |
+| `sdk.currency.format(amount)` | Format as currency |
 
 ## Releasing
 
@@ -103,4 +80,4 @@ icon: "🎯"       // Also works - emoji
 
 ## Full Documentation
 
-See https://github.com/zack-schrag/treeline-money/blob/main/docs/plugins.md
+See https://github.com/treeline-money/treeline
