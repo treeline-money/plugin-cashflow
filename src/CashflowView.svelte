@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import type { PluginSDK } from "@treeline-money/plugin-sdk";
+  import type { PluginSDK, QueryParam } from "@treeline-money/plugin-sdk";
 
   interface Props {
     sdk: PluginSDK;
@@ -246,12 +246,12 @@
   }
 
   // Auto-detection SQL for suggestions (filtered by selected accounts)
-  function getSuggestionSQL(accountIds: string[]): string {
+  function getSuggestionSQL(accountIds: string[]): { sql: string; params: QueryParam[] } {
     const accountFilter = accountIds.length > 0
-      ? `AND account_id IN (${accountIds.map(id => `'${id}'`).join(', ')})`
+      ? `AND account_id IN (${accountIds.map(() => '?').join(', ')})`
       : '';
 
-    return `WITH base_transactions AS (
+    const sql = `WITH base_transactions AS (
   SELECT
     ROUND(amount, 2) as norm_amount,
     UPPER(description) as upper_desc,
@@ -325,12 +325,13 @@ merchant_stats AS (
 SELECT description, avg_amount, occurrence_count, avg_interval, last_date
 FROM merchant_stats
 ORDER BY ABS(avg_amount) DESC`;
+    return { sql, params: [...accountIds] };
   }
 
   async function loadSuggestions() {
     try {
-      const sql = getSuggestionSQL(Array.from(selectedAccountIds));
-      const rows = await sdk.query<any>(sql);
+      const { sql, params } = getSuggestionSQL(Array.from(selectedAccountIds));
+      const rows = await sdk.query<any>(sql, params);
       suggestions = rows.map((r: any) => {
         const interval = Math.round(r[3] as number);
         let frequency = "monthly";
