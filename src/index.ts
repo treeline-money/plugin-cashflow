@@ -11,7 +11,8 @@ export const plugin: Plugin = {
     author: "Treeline",
     permissions: {
       tables: {
-        write: ["sys_plugin_treeline_cashflow_items"],
+        read: ["transactions", "accounts", "balance_snapshots", "sys_plugin_treeline_cashflow_items"],
+        create: ["sys_plugin_treeline_cashflow_items"],
       },
     },
   },
