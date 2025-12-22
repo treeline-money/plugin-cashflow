@@ -5,7 +5,7 @@ Project your future account balance based on recurring income and expenses.
 ## Features
 
 - **Auto-detection**: Analyzes your transaction history to find recurring income and expenses (paychecks, bills, subscriptions)
-- **Balance projection**: See your projected balance 30, 60, or 90 days into the future
+- **Balance projection**: See your projected balance 3, 6, or 12 months into the future
 - **Upcoming transactions**: View a list of expected transactions in chronological order
 - **Hide/unhide**: Exclude false positives from your projections
 - **Monthly summary**: See your estimated monthly income, expenses, and net cash flow
@@ -24,8 +24,8 @@ The plugin uses SQL pattern matching to detect recurring transactions:
 
 ```bash
 # Clone the repo
-git clone https://github.com/zack-schrag/treeline-cashflow.git
-cd treeline-cashflow
+git clone https://github.com/treeline-money/plugin-cashflow.git
+cd plugin-cashflow
 
 # Install dependencies and build
 npm install
@@ -38,7 +38,7 @@ tl plugin install /path/to/treeline-cashflow
 ### From GitHub Release
 
 ```bash
-tl plugin install https://github.com/zack-schrag/treeline-cashflow
+tl plugin install https://github.com/treeline-money/plugin-cashflow
 ```
 
 ## Usage
@@ -53,9 +53,11 @@ Once installed, you'll see "Cash Flow" in the sidebar. The view shows:
 ### Keyboard Shortcuts
 
 - `j` / `k` - Navigate up/down in the recurring list
-- `Enter` - View transactions for selected item in Query Editor
-- `h` - Hide/restore selected item from projections
-- `1` / `2` / `3` - Set horizon to 30/60/90 days
+- `Enter` - Edit selected item
+- `a` - Add new item
+- `e` - Edit selected item
+- `d` - Delete item
+- `Shift+d` - Delete entire series
 
 ## Development
 

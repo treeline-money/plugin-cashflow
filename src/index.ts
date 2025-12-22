@@ -4,14 +4,14 @@ import { mount, unmount } from "svelte";
 
 export const plugin: Plugin = {
   manifest: {
-    id: "cashflow",
+    id: "treeline-cashflow",
     name: "Cash Flow",
     version: "0.1.0",
     description: "Plan your future balance by scheduling expected income and expenses",
     author: "Treeline",
     permissions: {
       tables: {
-        write: ["sys_plugin_cashflow_items"],
+        write: ["sys_plugin_treeline_cashflow_items"],
       },
     },
   },
