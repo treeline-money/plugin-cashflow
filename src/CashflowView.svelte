@@ -828,7 +828,6 @@ ORDER BY ABS(avg_amount) DESC`;
     <div class="title-row">
       <h1 class="title">Cash Flow</h1>
       <div class="header-spacer"></div>
-      <button class="reset-btn" onclick={resetPluginData}>Reset Data</button>
       <button class="add-btn" onclick={() => openAddModal()}>+ Add</button>
     </div>
 
@@ -1204,21 +1203,6 @@ ORDER BY ABS(avg_amount) DESC`;
     opacity: 0.9;
   }
 
-  .reset-btn {
-    padding: 4px 10px;
-    background: var(--bg-tertiary);
-    color: var(--text-muted);
-    border: 1px solid var(--border-primary);
-    border-radius: 4px;
-    font-size: 11px;
-    cursor: pointer;
-  }
-
-  .reset-btn:hover {
-    color: var(--accent-danger);
-    border-color: var(--accent-danger);
-  }
-
   /* Account Selector */
   .account-selector {
     display: flex;
@@ -1431,14 +1415,8 @@ ORDER BY ABS(avg_amount) DESC`;
 
   .table-row.selected {
     background: var(--bg-active, rgba(88, 166, 255, 0.1));
-  }
-
-  .table-row.income {
-    border-left: 3px solid var(--accent-success, #3fb950);
-  }
-
-  .table-row:not(.income) {
-    border-left: 3px solid var(--accent-danger, #f85149);
+    border-left: 2px solid var(--accent-primary, #58a6ff);
+    padding-left: calc(var(--spacing-lg, 16px) - 2px);
   }
 
   .col-date {
