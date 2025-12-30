@@ -1,12 +1,16 @@
 {
   "id": "cashflow",
   "name": "Cash Flow",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Plan your future balance by scheduling expected income and expenses",
   "author": "Treeline",
   "main": "index.js",
   "permissions": {
-    "read": ["transactions", "accounts", "balance_snapshots"],
+    "read": [
+      "transactions",
+      "accounts",
+      "balance_snapshots"
+    ],
     "schemaName": "plugin_cashflow"
   }
 }
