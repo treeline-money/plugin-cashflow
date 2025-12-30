@@ -22,10 +22,10 @@ tl plugin install .  # Install locally for testing
 
 ## Plugin Data
 
-This plugin stores scheduled items in `sys_plugin_cashflow_items` table:
+This plugin stores scheduled items in `plugin_cashflow.scheduled` table:
 
 ```sql
-CREATE TABLE IF NOT EXISTS sys_plugin_cashflow_items (
+CREATE TABLE IF NOT EXISTS plugin_cashflow.scheduled (
   id VARCHAR PRIMARY KEY,
   series_id VARCHAR,              -- groups recurring items in a series
   description VARCHAR NOT NULL,
@@ -63,7 +63,7 @@ Views receive `sdk` via props:
 | Method | What it does |
 |--------|--------------|
 | `sdk.query(sql)` | Read data |
-| `sdk.execute(sql)` | Write to sys_plugin_cashflow_items |
+| `sdk.execute(sql)` | Write to plugin_cashflow.scheduled |
 | `sdk.toast.success/error/info(msg)` | Show notifications |
 | `sdk.openView(viewId, props?)` | Navigate to another view |
 | `sdk.onDataRefresh(callback)` | React when data changes |

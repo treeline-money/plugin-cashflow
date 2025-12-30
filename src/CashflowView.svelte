@@ -150,7 +150,7 @@
   async function ensureTable() {
     try {
       await sdk.execute(`
-        CREATE TABLE IF NOT EXISTS sys_plugin_cashflow_items (
+        CREATE TABLE IF NOT EXISTS plugin_cashflow.scheduled (
           id VARCHAR PRIMARY KEY,
           series_id VARCHAR,
           description VARCHAR NOT NULL,
@@ -161,11 +161,11 @@
       `);
       await sdk.execute(`
         CREATE INDEX IF NOT EXISTS idx_cashflow_items_date
-        ON sys_plugin_cashflow_items(date)
+        ON plugin_cashflow.scheduled(date)
       `);
       await sdk.execute(`
         CREATE INDEX IF NOT EXISTS idx_cashflow_items_series
-        ON sys_plugin_cashflow_items(series_id)
+        ON plugin_cashflow.scheduled(series_id)
       `);
     } catch (e) {
       // Tables may already exist
@@ -231,7 +231,7 @@
   async function loadItems() {
     try {
       const rows = await sdk.query<any>(
-        "SELECT id, series_id, description, amount, date FROM sys_plugin_cashflow_items ORDER BY date"
+        "SELECT id, series_id, description, amount, date FROM plugin_cashflow.scheduled ORDER BY date"
       );
       items = rows.map((r: any) => ({
         id: r[0] as string,
@@ -437,7 +437,7 @@ ORDER BY ABS(avg_amount) DESC`;
         // Single item
         const id = generateId();
         await sdk.execute(`
-          INSERT INTO sys_plugin_cashflow_items (id, series_id, description, amount, date)
+          INSERT INTO plugin_cashflow.scheduled (id, series_id, description, amount, date)
           VALUES (?, NULL, ?, ?, ?)
         `, [id, formDescription, amount, formDate]);
       } else {
@@ -456,7 +456,7 @@ ORDER BY ABS(avg_amount) DESC`;
             const id = generateId();
             const dateStr = currentDate.toISOString().split('T')[0];
             await sdk.execute(`
-              INSERT INTO sys_plugin_cashflow_items (id, series_id, description, amount, date)
+              INSERT INTO plugin_cashflow.scheduled (id, series_id, description, amount, date)
               VALUES (?, ?, ?, ?, ?)
             `, [id, seriesId, formDescription, amount, dateStr]);
             currentDate.setDate(currentDate.getDate() + intervalDays);
@@ -477,7 +477,7 @@ ORDER BY ABS(avg_amount) DESC`;
             const id = generateId();
             const dateStr = currentDate.toISOString().split('T')[0];
             await sdk.execute(`
-              INSERT INTO sys_plugin_cashflow_items (id, series_id, description, amount, date)
+              INSERT INTO plugin_cashflow.scheduled (id, series_id, description, amount, date)
               VALUES (?, ?, ?, ?, ?)
             `, [id, seriesId, formDescription, amount, dateStr]);
 
@@ -550,7 +550,7 @@ ORDER BY ABS(avg_amount) DESC`;
 
     try {
       await sdk.execute(`
-        UPDATE sys_plugin_cashflow_items
+        UPDATE plugin_cashflow.scheduled
         SET description = ?, amount = ?, date = ?
         WHERE id = ?
       `, [formDescription, amount, formDate, editingItem.id]);
@@ -566,13 +566,13 @@ ORDER BY ABS(avg_amount) DESC`;
     try {
       if (deleteAll && item.series_id) {
         await sdk.execute(`
-          DELETE FROM sys_plugin_cashflow_items
+          DELETE FROM plugin_cashflow.scheduled
           WHERE series_id = ?
         `, [item.series_id]);
         sdk.toast.success("Deleted series", item.description);
       } else {
         await sdk.execute(`
-          DELETE FROM sys_plugin_cashflow_items
+          DELETE FROM plugin_cashflow.scheduled
           WHERE id = ?
         `, [item.id]);
         sdk.toast.success("Deleted", item.description);
@@ -672,7 +672,7 @@ ORDER BY ABS(avg_amount) DESC`;
           const id = generateId();
           const dateStr = currentDate.toISOString().split('T')[0];
           await sdk.execute(`
-            INSERT INTO sys_plugin_cashflow_items (id, series_id, description, amount, date)
+            INSERT INTO plugin_cashflow.scheduled (id, series_id, description, amount, date)
             VALUES (?, ?, ?, ?, ?)
           `, [id, info.seriesId, info.description, info.amount, dateStr]);
           currentDate.setDate(currentDate.getDate() + info.intervalDays);
@@ -700,7 +700,7 @@ ORDER BY ABS(avg_amount) DESC`;
           const id = generateId();
           const dateStr = currentDate.toISOString().split('T')[0];
           await sdk.execute(`
-            INSERT INTO sys_plugin_cashflow_items (id, series_id, description, amount, date)
+            INSERT INTO plugin_cashflow.scheduled (id, series_id, description, amount, date)
             VALUES (?, ?, ?, ?, ?)
           `, [id, info.seriesId, info.description, info.amount, dateStr]);
 
