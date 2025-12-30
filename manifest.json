@@ -1,5 +1,5 @@
 {
-  "id": "treeline-cashflow",
+  "id": "cashflow",
   "name": "Cash Flow",
   "version": "0.3.1",
   "description": "Plan your future balance by scheduling expected income and expenses",
@@ -11,10 +11,10 @@
         "transactions",
         "accounts",
         "balance_snapshots",
-        "sys_plugin_treeline_cashflow_items"
+        "sys_plugin_cashflow_items"
       ],
       "create": [
-        "sys_plugin_treeline_cashflow_items"
+        "sys_plugin_cashflow_items"
       ]
     }
   }

@@ -32,7 +32,7 @@ npm install
 npm run build
 
 # Install the plugin
-tl plugin install /path/to/treeline-cashflow
+tl plugin install /path/to/plugin-cashflow
 ```
 
 ### From GitHub Release
