@@ -1,7 +1,7 @@
 {
   "id": "cashflow",
   "name": "Cash Flow",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Plan your future balance by scheduling expected income and expenses",
   "author": "Treeline",
   "main": "index.js",
