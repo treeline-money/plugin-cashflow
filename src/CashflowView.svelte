@@ -149,6 +149,9 @@
   // Database
   async function ensureTable() {
     try {
+      // Create schema first
+      await sdk.execute(`CREATE SCHEMA IF NOT EXISTS plugin_cashflow`);
+
       await sdk.execute(`
         CREATE TABLE IF NOT EXISTS plugin_cashflow.scheduled (
           id VARCHAR PRIMARY KEY,
