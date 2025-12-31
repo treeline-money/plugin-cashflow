@@ -1,6 +1,28 @@
-import type { Plugin, PluginContext, PluginSDK } from "@treeline-money/plugin-sdk";
+import type { Plugin, PluginContext, PluginSDK, PluginMigration } from "@treeline-money/plugin-sdk";
 import CashflowView from "./CashflowView.svelte";
 import { mount, unmount } from "svelte";
+
+// Database migrations - run in order by version when plugin loads
+const migrations: PluginMigration[] = [
+  {
+    version: 1,
+    name: "create_scheduled_table",
+    up: `
+      CREATE TABLE IF NOT EXISTS plugin_cashflow.scheduled (
+        id VARCHAR PRIMARY KEY,
+        series_id VARCHAR,
+        description VARCHAR NOT NULL,
+        amount DECIMAL(12,2) NOT NULL,
+        date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_cashflow_items_date
+        ON plugin_cashflow.scheduled(date);
+      CREATE INDEX IF NOT EXISTS idx_cashflow_items_series
+        ON plugin_cashflow.scheduled(series_id)
+    `,
+  },
+];
 
 export const plugin: Plugin = {
   manifest: {
@@ -14,6 +36,8 @@ export const plugin: Plugin = {
       schemaName: "plugin_cashflow",
     },
   },
+
+  migrations,
 
   activate(context: PluginContext) {
     console.log("Cash Flow plugin activated!");

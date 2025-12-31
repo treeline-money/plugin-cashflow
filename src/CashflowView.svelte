@@ -133,7 +133,7 @@
       loadData();
     });
 
-    await ensureTable();
+    // Tables are created by migrations in index.ts - just load data
     await loadAccounts();
     await loadItems();
     await loadSuggestions();
@@ -145,35 +145,6 @@
   onDestroy(() => {
     if (unsubscribe) unsubscribe();
   });
-
-  // Database
-  async function ensureTable() {
-    try {
-      // Create schema first
-      await sdk.execute(`CREATE SCHEMA IF NOT EXISTS plugin_cashflow`);
-
-      await sdk.execute(`
-        CREATE TABLE IF NOT EXISTS plugin_cashflow.scheduled (
-          id VARCHAR PRIMARY KEY,
-          series_id VARCHAR,
-          description VARCHAR NOT NULL,
-          amount DECIMAL(12,2) NOT NULL,
-          date DATE NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      await sdk.execute(`
-        CREATE INDEX IF NOT EXISTS idx_cashflow_items_date
-        ON plugin_cashflow.scheduled(date)
-      `);
-      await sdk.execute(`
-        CREATE INDEX IF NOT EXISTS idx_cashflow_items_series
-        ON plugin_cashflow.scheduled(series_id)
-      `);
-    } catch (e) {
-      // Tables may already exist
-    }
-  }
 
   async function loadAccounts() {
     try {
