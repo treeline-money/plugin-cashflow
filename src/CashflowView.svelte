@@ -788,8 +788,6 @@ ORDER BY ABS(avg_amount) DESC`;
   <header class="header">
     <div class="title-row">
       <h1 class="title">Cash Flow</h1>
-      <div class="header-spacer"></div>
-      <button class="add-btn" onclick={() => openAddModal()}>+ Add</button>
     </div>
 
     <!-- Account Selector -->
@@ -804,9 +802,6 @@ ORDER BY ABS(avg_amount) DESC`;
           {account.name}
         </button>
       {/each}
-      <span class="balance-display">
-        Balance: <strong>{formatCurrency(startingBalance)}</strong>
-      </span>
     </div>
   </header>
 
@@ -840,6 +835,7 @@ ORDER BY ABS(avg_amount) DESC`;
         <button class:active={horizonMonths === 6} onclick={() => setHorizon(6)}>6mo</button>
         <button class:active={horizonMonths === 12} onclick={() => setHorizon(12)}>1yr</button>
       </div>
+      <button class="add-btn" onclick={() => openAddModal()}>+ Add</button>
     </div>
   {/if}
 
@@ -859,10 +855,10 @@ ORDER BY ABS(avg_amount) DESC`;
     {:else}
       <div class="projection-table">
         <div class="table-header">
-          <span class="col-date">Date</span>
-          <span class="col-desc">Description</span>
-          <span class="col-amount">Amount</span>
-          <span class="col-balance">Balance</span>
+          <span>Date</span>
+          <span>Description</span>
+          <span>Amount</span>
+          <span>Balance</span>
         </div>
         <div class="table-body">
           {#each projectedItems as item, i}
@@ -1353,6 +1349,11 @@ ORDER BY ABS(avg_amount) DESC`;
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+  }
+
+  .table-header span:nth-child(3),
+  .table-header span:nth-child(4) {
+    text-align: right;
   }
 
   .table-body {
