@@ -124,6 +124,46 @@
     cursorIndex < projectedItems.length ? projectedItems[cursorIndex] : null
   );
 
+  // Chart data points (starting balance + all projected items)
+  let chartData = $derived.by(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Start with today's balance
+    const points: { date: string; balance: number; label: string }[] = [
+      { date: todayStr, balance: startingBalance, label: 'Today' }
+    ];
+
+    // Add each projected item
+    for (const item of projectedItems) {
+      points.push({
+        date: item.date,
+        balance: item.running_balance,
+        label: item.description
+      });
+    }
+
+    return points;
+  });
+
+  // Chart dimensions and scales
+  let chartBounds = $derived.by(() => {
+    if (chartData.length === 0) return { minBal: 0, maxBal: 1000, minDate: new Date(), maxDate: new Date() };
+
+    const balances = chartData.map(p => p.balance);
+    const minBal = Math.min(0, ...balances); // Always include 0 line
+    const maxBal = Math.max(...balances);
+    const padding = (maxBal - minBal) * 0.1 || 100;
+
+    const dates = chartData.map(p => new Date(p.date + 'T00:00:00'));
+
+    return {
+      minBal: minBal - padding,
+      maxBal: maxBal + padding,
+      minDate: dates[0],
+      maxDate: dates[dates.length - 1]
+    };
+  });
 
   // Lifecycle
   let unsubscribe: (() => void) | null = null;
@@ -733,6 +773,93 @@ ORDER BY ABS(avg_amount) DESC`;
     });
   }
 
+  // Chart helper functions
+  const CHART_WIDTH = 1000; // Larger viewBox for better precision
+  const CHART_HEIGHT = 120;
+  const CHART_PADDING = { top: 10, right: 0, bottom: 8, left: 0 };
+
+  function scaleX(date: Date): number {
+    const { minDate, maxDate } = chartBounds;
+    const range = maxDate.getTime() - minDate.getTime();
+    if (range === 0) return 0;
+    return ((date.getTime() - minDate.getTime()) / range) * CHART_WIDTH;
+  }
+
+  function scaleY(balance: number): number {
+    const { minBal, maxBal } = chartBounds;
+    const range = maxBal - minBal;
+    if (range === 0) return CHART_HEIGHT / 2;
+    const y = ((maxBal - balance) / range) * (CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom);
+    return CHART_PADDING.top + y;
+  }
+
+  let chartPath = $derived.by(() => {
+    if (chartData.length < 2) return '';
+    return chartData.map((point, i) => {
+      const x = scaleX(new Date(point.date + 'T00:00:00'));
+      const y = scaleY(point.balance);
+      return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }).join(' ');
+  });
+
+  let chartAreaPath = $derived.by(() => {
+    if (chartData.length < 2) return '';
+    const points = chartData.map((point) => {
+      const x = scaleX(new Date(point.date + 'T00:00:00'));
+      const y = scaleY(point.balance);
+      return { x, y };
+    });
+
+    const linePath = points.map((p, i) =>
+      `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`
+    ).join(' ');
+
+    const lastX = points[points.length - 1].x;
+    const firstX = points[0].x;
+    const bottomY = CHART_HEIGHT - CHART_PADDING.bottom;
+
+    return `${linePath} L ${lastX.toFixed(2)} ${bottomY} L ${firstX.toFixed(2)} ${bottomY} Z`;
+  });
+
+  let zeroLineY = $derived(scaleY(0));
+
+  // Hover state for chart
+  let hoverIndex = $state<number | null>(null);
+  let chartContainerEl = $state<HTMLDivElement | null>(null);
+
+  let hoveredPoint = $derived(hoverIndex !== null ? chartData[hoverIndex] : null);
+
+  function handleChartMouseMove(e: MouseEvent) {
+    if (!chartContainerEl || chartData.length < 2) {
+      hoverIndex = null;
+      return;
+    }
+
+    const rect = chartContainerEl.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const xPercent = (x / rect.width) * 100;
+
+    // Find closest point
+    let closestIndex = 0;
+    let closestDist = Infinity;
+
+    for (let i = 0; i < chartData.length; i++) {
+      const pointX = scaleX(new Date(chartData[i].date + 'T00:00:00'));
+      const pointXPercent = (pointX / CHART_WIDTH) * 100;
+      const dist = Math.abs(pointXPercent - xPercent);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestIndex = i;
+      }
+    }
+
+    hoverIndex = closestIndex;
+  }
+
+  function handleChartMouseLeave() {
+    hoverIndex = null;
+  }
+
   // Keyboard navigation
   function handleKeyDown(e: KeyboardEvent) {
     if (showAddModal || showEditModal || showExtendModal) return;
@@ -837,6 +964,96 @@ ORDER BY ABS(avg_amount) DESC`;
       </div>
       <button class="add-btn" onclick={() => openAddModal()}>+ Add</button>
     </div>
+
+    <!-- Balance Projection Chart -->
+    {#if projectedItems.length > 0}
+      <div class="chart-section">
+        <div class="chart-label">BALANCE PROJECTION</div>
+        <div
+          class="chart-wrapper"
+          bind:this={chartContainerEl}
+          onmousemove={handleChartMouseMove}
+          onmouseleave={handleChartMouseLeave}
+          role="img"
+          aria-label="Balance projection chart"
+        >
+          <svg
+            class="chart"
+            viewBox="0 0 {CHART_WIDTH} {CHART_HEIGHT}"
+            preserveAspectRatio="none"
+          >
+            <!-- Danger zone (below zero) -->
+            {#if chartBounds.minBal < 0}
+              <rect
+                x="0"
+                y={zeroLineY}
+                width={CHART_WIDTH}
+                height={CHART_HEIGHT - CHART_PADDING.bottom - zeroLineY}
+                class="danger-zone"
+              />
+            {/if}
+
+            <!-- Zero line -->
+            {#if chartBounds.minBal < 0 || chartBounds.maxBal > 0}
+              <line
+                x1="0"
+                y1={zeroLineY}
+                x2={CHART_WIDTH}
+                y2={zeroLineY}
+                class="zero-line"
+              />
+            {/if}
+
+            <!-- Area fill -->
+            <path d={chartAreaPath} class="chart-area" />
+
+            <!-- Line -->
+            <path d={chartPath} class="chart-line" />
+
+            <!-- Hover vertical line -->
+            {#if hoveredPoint}
+              {@const hx = scaleX(new Date(hoveredPoint.date + 'T00:00:00'))}
+              {@const hy = scaleY(hoveredPoint.balance)}
+              <line
+                x1={hx}
+                y1={CHART_PADDING.top}
+                x2={hx}
+                y2={CHART_HEIGHT - CHART_PADDING.bottom}
+                class="hover-line"
+              />
+              <circle
+                cx={hx}
+                cy={hy}
+                r="5"
+                class="hover-point"
+              />
+            {/if}
+          </svg>
+
+          <!-- Tooltip -->
+          {#if hoveredPoint}
+            {@const hxPercent = (scaleX(new Date(hoveredPoint.date + 'T00:00:00')) / CHART_WIDTH) * 100}
+            <div
+              class="chart-tooltip"
+              style="left: {hxPercent}%"
+              class:flip-left={hxPercent > 75}
+              class:flip-right={hxPercent < 25}
+            >
+              <div class="tooltip-value" class:danger={hoveredPoint.balance < 0}>
+                {formatCurrency(hoveredPoint.balance)}
+              </div>
+              <div class="tooltip-label">{formatDate(hoveredPoint.date)} · {hoveredPoint.label}</div>
+            </div>
+          {/if}
+
+          <!-- X-axis labels -->
+          <div class="chart-x-labels">
+            <span class="x-label first">Today</span>
+            <span class="x-label last">{horizonMonths}mo</span>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 
   <!-- Main Content -->
@@ -1270,6 +1487,124 @@ ORDER BY ABS(avg_amount) DESC`;
     background: var(--accent-primary);
     border-color: var(--accent-primary);
     color: white;
+  }
+
+  /* Chart Section */
+  .chart-section {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: var(--spacing-md, 12px) var(--spacing-lg, 16px);
+  }
+
+  .chart-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-sm, 8px);
+  }
+
+  .chart-wrapper {
+    position: relative;
+    cursor: crosshair;
+  }
+
+  .chart {
+    display: block;
+    width: 100%;
+    height: 120px;
+    overflow: visible;
+  }
+
+  .danger-zone {
+    fill: rgba(248, 81, 73, 0.08);
+  }
+
+  .zero-line {
+    stroke: var(--border-primary);
+    stroke-width: 1;
+    stroke-dasharray: 4 2;
+    opacity: 0.5;
+  }
+
+  .chart-area {
+    fill: var(--accent-primary, #58a6ff);
+    opacity: 0.15;
+  }
+
+  .chart-line {
+    fill: none;
+    stroke: var(--accent-primary, #58a6ff);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .hover-line {
+    stroke: var(--text-muted);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+    opacity: 0.5;
+  }
+
+  .hover-point {
+    fill: var(--accent-primary, #58a6ff);
+    stroke: var(--bg-primary);
+    stroke-width: 2;
+  }
+
+  .chart-tooltip {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    padding: 4px 8px;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  .chart-tooltip.flip-left {
+    transform: translateX(-90%);
+  }
+
+  .chart-tooltip.flip-right {
+    transform: translateX(-10%);
+  }
+
+  .tooltip-value {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-mono, monospace);
+    color: var(--text-primary);
+  }
+
+  .tooltip-value.danger {
+    color: var(--accent-danger, #f85149);
+  }
+
+  .tooltip-label {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .chart-x-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+  }
+
+  .x-label {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .x-label.last {
+    font-weight: 500;
+    color: var(--text-secondary);
   }
 
   /* Main Content */

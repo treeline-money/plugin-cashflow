@@ -1,6 +1,7 @@
 Plan ahead by scheduling expected income and expenses. See your projected balance weeks or months into the future.
 
-<!-- TODO: Add screenshot -->
+![Cash Flow plugin showing projected balance](./screenshots/cashflow-light.png)
+![Cash Flow plugin showing projected balance](./screenshots/cashflow-dark.png)
 
 ## How it works
 
