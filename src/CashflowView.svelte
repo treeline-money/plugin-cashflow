@@ -168,15 +168,19 @@
   // Lifecycle
   let unsubscribe: (() => void) | null = null;
 
-  onMount(async () => {
-    unsubscribe = sdk.onDataRefresh(() => {
-      loadData();
-    });
-
-    // Tables are created by migrations in index.ts - just load data
+  async function reloadData() {
     await loadAccounts();
     await loadItems();
     await loadSuggestions();
+  }
+
+  onMount(async () => {
+    unsubscribe = sdk.onDataRefresh(() => {
+      reloadData();
+    });
+
+    // Tables are created by migrations in index.ts - just load data
+    await reloadData();
     isLoading = false;
 
     containerEl?.focus();
