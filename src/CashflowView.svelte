@@ -747,19 +747,11 @@ ORDER BY ABS(avg_amount) DESC`;
 
   // Formatting
   function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return sdk.currency.format(amount);
   }
 
   function formatCurrencyFull(amount: number): string {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+    return sdk.currency.format(amount);
   }
 
   function formatDate(dateStr: string): string {
@@ -1396,11 +1388,16 @@ ORDER BY ABS(avg_amount) DESC`;
   }
 
   .account-chip {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    font-family: inherit;
     padding: 4px 10px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-primary);
     border-radius: 4px;
     font-size: 12px;
+    line-height: 1.4;
     color: var(--text-secondary);
     cursor: pointer;
   }
