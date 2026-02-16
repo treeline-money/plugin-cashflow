@@ -204,12 +204,12 @@
         )
         SELECT
           a.account_id,
-          COALESCE(a.nickname, a.name) as display_name,
+          COALESCE(NULLIF(a.nickname, ''), NULLIF(a.name, ''), a.account_type, 'Account') as display_name,
           COALESCE(s.balance, 0) as balance,
           a.account_type
         FROM accounts a
         LEFT JOIN latest_snapshots s ON a.account_id = s.account_id AND s.rn = 1
-        ORDER BY COALESCE(a.nickname, a.name)
+        ORDER BY COALESCE(NULLIF(a.nickname, ''), NULLIF(a.name, ''), a.account_type, 'Account')
       `);
       accounts = rows.map((r: any) => ({
         id: r[0] as string,
