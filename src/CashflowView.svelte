@@ -87,7 +87,7 @@
     // Filter items within horizon and sort by date
     const filtered = items
       .filter(item => {
-        const itemDate = new Date(item.date);
+        const itemDate = new Date(item.date + 'T00:00:00');
         return itemDate >= today && itemDate <= horizonDate;
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
